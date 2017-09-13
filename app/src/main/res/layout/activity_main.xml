@@ -11,4 +11,13 @@
         android:layout_height="match_parent"
         android:id="@+id/java_camera_view"/>
 
+    <TextView
+        android:text="@string/processing"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/tvDetected"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true" />
+
 </RelativeLayout>
