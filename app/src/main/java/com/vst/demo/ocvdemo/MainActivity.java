@@ -10,6 +10,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.SurfaceView;
+import android.view.WindowManager;
 import android.widget.Toast;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -64,7 +65,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     /**
      * selected area is the camera preview cut to the crop rectangle
      */
-    private final double threshold = 1.0;
+    private final double threshold = .75;
     /**
      * frame size width
      */
@@ -121,7 +122,8 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
         //Requesting Permission
         int MyVersion = Build.VERSION.SDK_INT;
@@ -238,14 +240,14 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
         if (minMaxLocResult.maxVal >= threshold) {
             Log.d(TAG, " Best Match in threshold "+ minMaxLocResult.maxVal);
-            Imgproc.rectangle(mCameraMat, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows() ), new Scalar(255,0,0) );
+            Imgproc.rectangle(mCameraMat, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows() ), new Scalar(0, 255, 0) );
 
         } else {
             Log.d(TAG, " MatchResult Threshold Value "+ minMaxLocResult.maxVal);
 
         }
 
-        Imgproc.rectangle(result, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows()), new Scalar(255, 0, 0));
+        Imgproc.rectangle(result, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows()), new Scalar(0, 255, 0));
         return mCameraMat;
     }
 }
