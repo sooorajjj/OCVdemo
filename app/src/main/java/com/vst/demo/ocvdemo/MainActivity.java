@@ -21,13 +21,21 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
+import org.opencv.core.DMatch;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfDMatch;
+import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Scalar;
+import org.opencv.features2d.DescriptorExtractor;
+import org.opencv.features2d.DescriptorMatcher;
+import org.opencv.features2d.FeatureDetector;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 
 import static org.opencv.core.Core.NORM_MINMAX;
 
@@ -55,7 +63,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     /**
      * selected area is the camera preview cut to the crop rectangle
      */
-    private final double threshold = .75;
+    private final double threshold = 1.0;
     /**
      * frame size width
      */
@@ -70,16 +78,26 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
      */
     private static final boolean FIXED_FRAME_SIZE = true;
 
+    FeatureDetector detector;
+    DescriptorExtractor descriptor;
+    DescriptorMatcher matcher;
+    Mat descriptors2,descriptors1;
+    MatOfKeyPoint keypoints1,keypoints2;
+
     BaseLoaderCallback mLoaderCallBack = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
             switch (status){
                 case BaseLoaderCallback.SUCCESS:{
 
+                    detector = FeatureDetector.create(FeatureDetector.ORB);
+                    descriptor = DescriptorExtractor.create(DescriptorExtractor.ORB);
+                    matcher = DescriptorMatcher.create(DescriptorMatcher.BRUTEFORCE_HAMMING);
+
                     // load the specified image from file system in bgr color
                     Mat bgr = null;
                     try {
-                        bgr = Utils.loadResource(getApplicationContext(), TEMPLATE_IMAGE, Imgcodecs.CV_LOAD_IMAGE_COLOR);
+                        bgr = Utils.loadResource(getApplicationContext() , R.drawable.template_switchboard2, Imgcodecs.CV_LOAD_IMAGE_COLOR);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -87,8 +105,13 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
                     // convert the image to rgba
                     mTemplateMat = new Mat();
                     Imgproc.cvtColor(bgr, mTemplateMat, Imgproc.COLOR_BGR2RGBA);//COLOR_BGR2GRAY
+                    mTemplateMat.convertTo(mTemplateMat, CvType.CV_8UC1, 255.0/65536.0);
+                    descriptors1 = new Mat();
+                    keypoints1 = new MatOfKeyPoint();
+                    detector.detect(mTemplateMat, keypoints1);
+                    descriptor.compute(mTemplateMat, keypoints1, descriptors1);
 
-                    mCameraMat = new Mat();
+//                    mCameraMat = new Mat();
                     result = new Mat();
                     javaCameraView.enableView();
                     break;
@@ -186,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-//        mCameraMat = new Mat(height, width, CvType.CV_8UC4);
+        mCameraMat = new Mat(height, width, CvType.CV_8UC4);
     }
 
     @Override
@@ -203,6 +226,33 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         // Because Template Image is bigger resolution that the camera preview
         // Note : NEVER ADD TEMPLATE WITH A RESOLUTION GREATER THAN CAMERA PREVIEW (640x480)
 //        Imgproc.resize(mTemplateMat,mTemplateMat,mCameraMat.size());
+
+
+        descriptors2 = new Mat();
+        keypoints2 = new MatOfKeyPoint();
+        detector.detect(mCameraMat, keypoints2);
+        descriptor.compute(mCameraMat, keypoints2, descriptors2);
+
+        // Matching
+        MatOfDMatch matches = new MatOfDMatch();
+        if (mTemplateMat.type() == mCameraMat.type()) {
+            matcher.match(descriptors1, descriptors2, matches);
+        } else {
+            return mCameraMat;
+        }
+
+        Double max_dist = 0.0;
+        Double min_dist = 100.0;
+        List<DMatch> matchesList = matches.toList();
+
+        for (int i = 0; i < matchesList.size(); i++) {
+            Double dist = (double) matchesList.get(i).distance;
+            if (dist < min_dist)
+                min_dist = dist;
+            if (dist > max_dist)
+                max_dist = dist;
+        }
+
 
 
         /// Create the result matrix
@@ -233,9 +283,16 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         }
 
         if (minMaxLocResult.maxVal >= threshold) {
-            Log.d(TAG, " Best Match in threshold "+ minMaxLocResult.maxVal);
             // Red LandMark Scalar(255, 0, 0) )
-            Imgproc.rectangle(mCameraMat, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows() ), new Scalar(0, 255, 0) );
+            // Imgproc.rectangle draws landmark around matching area
+//        LinkedList<DMatch> good_matches = new LinkedList<DMatch>();
+            for (int i = 0; i < matchesList.size(); i++) {
+//                good_matches.addLast(matchesList.get(i));
+                if (matchesList.get(i).distance <= (1.5 * min_dist)) {
+                    Log.d(TAG, " Best Match in threshold "+ minMaxLocResult.maxVal);
+                    Imgproc.rectangle(mCameraMat, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows() ), new Scalar(0, 255, 0) );
+                }
+            }
 
         } else {
             Log.d(TAG, " MatchResult Threshold Value "+ minMaxLocResult.maxVal);
