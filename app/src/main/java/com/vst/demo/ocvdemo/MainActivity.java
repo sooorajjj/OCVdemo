@@ -52,16 +52,6 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
      * or for copying into the camera view
      */
     Mat mTemplateMat;
-//
-//    /**
-//     * the crop rectangle with the size of the template image
-//     */
-//    Rect rect;
-//    /**
-//     * selected area is the camera preview cut to the crop rectangle
-//     */
-//    Mat selectedArea;
-
     /**
      * selected area is the camera preview cut to the crop rectangle
      */
@@ -96,8 +86,9 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
                     // convert the image to rgba
                     mTemplateMat = new Mat();
-                    Imgproc.cvtColor(bgr, mTemplateMat, Imgproc.COLOR_BGR2RGBA);
+                    Imgproc.cvtColor(bgr, mTemplateMat, Imgproc.COLOR_BGR2RGBA);//COLOR_BGR2GRAY
 
+                    mCameraMat = new Mat();
                     result = new Mat();
                     javaCameraView.enableView();
                     break;
@@ -195,7 +186,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-        mCameraMat = new Mat(height, width, CvType.CV_8UC4);
+//        mCameraMat = new Mat(height, width, CvType.CV_8UC4);
     }
 
     @Override
@@ -206,7 +197,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        mCameraMat = inputFrame.rgba();
+        mCameraMat = inputFrame.rgba();//gray()
 
         // Template Matrix requires resizing
         // Because Template Image is bigger resolution that the camera preview
@@ -217,16 +208,19 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         /// Create the result matrix
         int result_cols =  mCameraMat.cols() - mTemplateMat.cols() + 1;
         int result_rows = mCameraMat.rows() - mTemplateMat.rows() + 1;
-        result.create(result_rows, result_cols, CvType.CV_8UC4);
+        result.create(result_rows, result_cols, CvType.CV_32FC1 );
 
         /// Do the Matching and Normalize
-        int match_method = Imgproc.TM_SQDIFF;
+        // TM_CCOEFF 3.21 FPS [Not so accurate but not bad too]
+        // TM_CCORR 3.78 FPS very in-accurate results
+        // TM_SQDIFF 2.93 FPS Much accurate  Remember to set the threshold to lower value for this method
+        int match_method = Imgproc.TM_CCOEFF;
         Imgproc.matchTemplate(mCameraMat, mTemplateMat, result, match_method);
 
         Core.normalize(result, result, 0, 1, NORM_MINMAX, -1, new Mat());
 
-        Core.MinMaxLocResult minMaxLocResult = Core.minMaxLoc(result);
-//
+        Core.MinMaxLocResult minMaxLocResult = Core.minMaxLoc(result, new Mat());
+
         Point matchLoc;
         /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
         if( match_method  == Imgproc.TM_SQDIFF || match_method == Imgproc.TM_SQDIFF_NORMED )
@@ -240,6 +234,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
         if (minMaxLocResult.maxVal >= threshold) {
             Log.d(TAG, " Best Match in threshold "+ minMaxLocResult.maxVal);
+            // Red LandMark Scalar(255, 0, 0) )
             Imgproc.rectangle(mCameraMat, matchLoc, new Point(matchLoc.x + mTemplateMat.cols(), matchLoc.y + mTemplateMat.rows() ), new Scalar(0, 255, 0) );
 
         } else {
